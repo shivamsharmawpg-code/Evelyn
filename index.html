@@ -265,6 +265,13 @@
         return;
       }
 
+      if (key === 'nroot(') {
+        insertAtCursor(target, 'nroot(, )');
+        const cursor = (target.selectionStart ?? target.value.length) - 3;
+        target.setSelectionRange(cursor, cursor);
+        return;
+      }
+
       insertAtCursor(target, key === 'π' ? 'pi' : key);
     });
 
@@ -285,12 +292,14 @@
       expr = expr.replace(/\bdivided\s+by\b/gi, '/');
       expr = expr.replace(/(\d+)(st|nd|rd|th)\s+root\s+of\s+([^=]+)/gi, (_, power, __, inner) => `nroot(${inner.trim()},${power})`);
       expr = expr.replace(/\broot\s+(\d+)\s+of\s+([^=]+)/gi, (_, power, inner) => `nroot(${inner.trim()},${power})`);
+      expr = expr.replace(/\bnroot\s*of\s+([^=]+)/gi, (_, inner) => `nroot(${inner.trim()},2)`);
       expr = expr.replace(/\bcube\s*root\s*of\s+([^=]+)/gi, (_, inner) => `nroot(${inner.trim()},3)`);
       expr = expr.replace(/\bquartic\s*root\s*of\s+([^=]+)/gi, (_, inner) => `nroot(${inner.trim()},4)`);
+      expr = expr.replace(/\bnroot\s*(\d+)\s*(?:of)?\s*([a-zA-Z0-9().+\-*/^]+)/gi, 'nroot($2,$1)');
       expr = expr.replace(/\bof\b/gi, '*');
       expr = expr.replace(/(sin|cos|tan|sec|csc|cot)\s*x\b/gi, '$1(x)');
       expr = expr.replace(/(sin|cos|tan|sec|csc|cot)x\b/gi, '$1(x)');
-      expr = expr.replace(/\bnroot\s+(\d+)\s+([a-zA-Z0-9().+\-*/^]+)/gi, 'nroot($2,$1)');
+      expr = expr.replace(/\bnroot\s*\(\s*([^)]+?)\s*\)\s*\(\s*([^)]+?)\s*\)/gi, 'nroot($1,$2)');
       expr = expr.replace(/(\d)([a-zA-Z(])/g, '$1*$2');
       expr = expr.replace(/(\))([a-zA-Z(\d])/g, '$1*$2');
       expr = expr.replace(/([xX])(\d)/g, '$1*$2');
@@ -351,24 +360,35 @@
     }
 
     function getDefinedFunctions() {
-      const definitions = {};
-      [...functionRows.children].forEach((row, index) => {
+      return [...functionRows.children].map((row, index) => {
         const input = row.querySelector('.fn-input');
-        const expressionRaw = input?.value?.trim();
-        if (!expressionRaw) return;
+        const expressionRaw = input?.value?.trim() || '';
         const fnName = functionNameFromIndex(index);
-        definitions[fnName] = normalizeExpression(expressionRaw);
+        return {
+          name: fnName,
+          body: expressionRaw ? normalizeExpression(expressionRaw) : ''
+        };
       });
-      return definitions;
     }
 
-    function resolveFunctionReferences(expression, definitions) {
+    function resolveFunctionReferences(expression, definitions, skipNames = new Set()) {
       let resolved = expression;
-      Object.entries(definitions).forEach(([fnName, fnBody]) => {
-        const refPattern = new RegExp(`\\b${fnName}\\s*\\(\\s*x\\s*\\)`, 'gi');
-        resolved = resolved.replace(refPattern, `(${fnBody})`);
+      definitions.forEach(({ name, body }) => {
+        if (!body || skipNames.has(name)) return;
+        const refPattern = new RegExp(`\\b${name}\\s*\\(\\s*x\\s*\\)`, 'gi');
+        resolved = resolved.replace(refPattern, `(${body})`);
       });
       return resolved;
+    }
+
+    function expandFunctionReferences(expression, definitions, skipNames = new Set()) {
+      let current = expression;
+      for (let depth = 0; depth < definitions.length + 2; depth++) {
+        const next = resolveFunctionReferences(current, definitions, skipNames);
+        if (next === current) break;
+        current = next;
+      }
+      return current;
     }
 
     function updateRow(row) {
@@ -385,8 +405,11 @@
       }
 
       try {
+        const allDefinitions = getDefinedFunctions();
+        const fnLabel = row.querySelector('.fn-label')?.textContent?.replace('(x)', '').trim() || '';
         const normalizedExpression = normalizeExpression(expressionRaw);
-        const derivativeSafeExpression = rewriteNRootForDerivative(normalizedExpression);
+        const expandedExpression = expandFunctionReferences(normalizedExpression, allDefinitions, new Set([fnLabel]));
+        const derivativeSafeExpression = rewriteNRootForDerivative(expandedExpression);
         const functionNode = math.parse(derivativeSafeExpression);
         const derivativeNode = math.derivative(derivativeSafeExpression, 'x');
         const detectedRules = [...detectRulesFromNode(functionNode)];
@@ -412,7 +435,7 @@
       row.innerHTML = `
         <div class="grid gap-4 md:grid-cols-2">
           <label class="block">
-            <span class="mb-1 block text-sm text-amber-100/85">${fnName}(x) =</span>
+            <span class="fn-label mb-1 block text-sm text-amber-100/85">${fnName}(x) =</span>
             <input type="text" value="${defaultExpression}" class="fn-input w-full rounded-xl border border-amber-300/30 bg-black/25 px-4 py-2 text-amber-50 outline-none transition focus:border-glow focus:shadow-glow" placeholder="e.g. 38sinx or 14x^18" />
           </label>
           <div class="block">
@@ -451,7 +474,7 @@
 
       try {
         const definitions = getDefinedFunctions();
-        const resolved = resolveFunctionReferences(value, definitions);
+        const resolved = expandFunctionReferences(value, definitions);
         const normalized = normalizeExpression(resolved);
         const stepItems = [];
         stepItems.push(`Read input: <code>${value.replace(/</g, '&lt;')}</code>`);
