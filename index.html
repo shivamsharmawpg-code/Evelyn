@@ -89,9 +89,11 @@
         transform: translateY(0) rotate(45deg) scale(0.8);
         opacity: 0;
       }
+
       20% {
         opacity: 1;
       }
+
       100% {
         transform: translateY(-180px) translateX(var(--drift, 0px)) rotate(45deg) scale(1.3);
         opacity: 0;
@@ -100,30 +102,35 @@
   </style>
 </head>
 <body class="soft-focus text-amber-50">
-  <main class="relative z-10 mx-auto max-w-3xl px-4 py-12">
+  <main class="relative z-10 mx-auto max-w-4xl px-4 py-12">
     <section id="appContent" class="locked rounded-3xl border border-amber-300/25 bg-velvet/65 p-8 shadow-glow backdrop-blur-sm transition duration-500">
-      <h1 class="text-center text-3xl font-bold tracking-wide text-glow">Evelyn's Math Suite</h1>
-      <p class="mt-2 text-center text-amber-100/85">Midnight Violet mode engaged ✨</p>
+      <h1 class="text-center text-3xl font-bold tracking-wide text-glow">Evelyn's Derivative Studio</h1>
+      <p class="mt-2 text-center text-amber-100/85">Power rule, product rule, quotient rule, and trig derivatives ✨</p>
 
-      <div class="mt-8 rounded-2xl border border-amber-200/20 bg-midnight/70 p-6">
-        <p class="text-lg leading-relaxed">Function: <span class="text-glow">$f(x) = x^{2e^x}$</span></p>
-        <p class="mt-3 leading-relaxed">Derivative: <span class="text-glow">$f'(x) = 2e^x x^{2e^x}(\ln(x)+1/x)$</span></p>
+      <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <button class="rule-btn rounded-xl border border-amber-300/30 bg-midnight/70 px-4 py-3 font-semibold transition hover:border-glow" data-rule="power">Power Rule</button>
+        <button class="rule-btn rounded-xl border border-amber-300/30 bg-midnight/70 px-4 py-3 font-semibold transition hover:border-glow" data-rule="product">Product Rule</button>
+        <button class="rule-btn rounded-xl border border-amber-300/30 bg-midnight/70 px-4 py-3 font-semibold transition hover:border-glow" data-rule="quotient">Quotient Rule</button>
+        <button class="rule-btn rounded-xl border border-amber-300/30 bg-midnight/70 px-4 py-3 font-semibold transition hover:border-glow" data-rule="trig">Trig Derivatives</button>
       </div>
 
-      <div class="mt-6 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
-        <label class="block">
-          <span class="mb-1 block text-sm text-amber-100/85">Optional value for $x$ (must be positive)</span>
-          <input id="xInput" type="number" step="any" placeholder="e.g. 1.5"
-            class="w-full rounded-xl border border-amber-300/30 bg-black/25 px-4 py-2 text-amber-50 outline-none ring-0 transition focus:border-glow focus:shadow-glow" />
-        </label>
-        <button id="calcBtn"
-          class="rounded-xl bg-glow px-5 py-2 font-semibold text-midnight transition hover:brightness-110 active:scale-[0.98]">
-          Calculate
-        </button>
+      <div class="mt-6 rounded-2xl border border-amber-200/20 bg-midnight/70 p-6">
+        <h2 class="text-xl font-semibold text-glow">Math Keyboard</h2>
+        <p class="mt-1 text-sm text-amber-100/85">Tap symbols to build notes or formulas quickly.</p>
+        <input id="formulaInput" type="text" placeholder="Build your own expression..."
+          class="mt-3 w-full rounded-xl border border-amber-300/30 bg-black/25 px-4 py-2 text-amber-50 outline-none ring-0 transition focus:border-glow focus:shadow-glow" />
+        <div id="mathKeyboard" class="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6"></div>
       </div>
 
-      <p id="status" class="mt-5 min-h-6 text-rose"></p>
-      <div id="result" class="mt-3 hidden rounded-2xl border border-amber-300/25 bg-black/25 p-4"></div>
+      <div id="rulePanel" class="mt-6 rounded-2xl border border-amber-200/20 bg-midnight/70 p-6">
+        <h2 id="ruleTitle" class="text-xl font-semibold text-glow"></h2>
+        <p id="ruleHint" class="mt-1 text-sm text-amber-100/85"></p>
+        <div id="ruleInputs" class="mt-4 grid gap-4 sm:grid-cols-2"></div>
+        <button id="calcBtn" class="mt-4 rounded-xl bg-glow px-5 py-2 font-semibold text-midnight transition hover:brightness-110 active:scale-[0.98]">Calculate derivative</button>
+
+        <p id="status" class="mt-5 min-h-6 text-rose"></p>
+        <div id="result" class="mt-3 hidden rounded-2xl border border-amber-300/25 bg-black/25 p-4"></div>
+      </div>
     </section>
 
     <section id="gatekeeper" class="absolute inset-0 z-20 flex items-center justify-center rounded-3xl bg-black/45 backdrop-blur-md">
@@ -159,23 +166,6 @@
       }
     }
 
-    function calculateEvelynTower(x) {
-      if (x <= 0 || Number.isNaN(x)) {
-        return { error: 'Darling, we need x to be positive for this kind of chemistry.' };
-      }
-
-      const exponent = 2 * Math.exp(x);
-      const originalValue = Math.pow(x, exponent);
-      const derivative = (2 * Math.exp(x)) * originalValue * (Math.log(x) + (1 / x));
-
-      return {
-        y: originalValue,
-        dy: derivative,
-        huge: !Number.isFinite(derivative) || Math.abs(derivative) > 1e12,
-        note: 'September 15th was just the beginning of this exponential curve.'
-      };
-    }
-
     document.getElementById('unlockBtn').addEventListener('click', () => {
       const value = annivInput.value.trim();
       if (value === correctDate) {
@@ -192,53 +182,186 @@
       if (e.key === 'Enter') document.getElementById('unlockBtn').click();
     });
 
+    const ruleConfigs = {
+      power: {
+        title: 'Power Rule',
+        hint: 'For f(x)=a·x^n, f\'(x)=a·n·x^(n-1).',
+        fields: [
+          { id: 'a', label: 'a (coefficient)', value: 1 },
+          { id: 'n', label: 'n (exponent)', value: 3 }
+        ]
+      },
+      product: {
+        title: 'Product Rule',
+        hint: 'For f(x)=u(x)v(x), f\'(x)=u\'(x)v(x)+u(x)v\'(x).',
+        fields: [
+          { id: 'a', label: 'u coefficient a', value: 2 },
+          { id: 'm', label: 'u exponent m', value: 3 },
+          { id: 'b', label: 'v coefficient b', value: 4 },
+          { id: 'n', label: 'v exponent n', value: 2 }
+        ]
+      },
+      quotient: {
+        title: 'Quotient Rule',
+        hint: 'For f(x)=u(x)/v(x), f\'(x)=(u\'v-uv\')/v^2.',
+        fields: [
+          { id: 'a', label: 'u coefficient a', value: 6 },
+          { id: 'm', label: 'u exponent m', value: 5 },
+          { id: 'b', label: 'v coefficient b', value: 2 },
+          { id: 'n', label: 'v exponent n', value: 2 }
+        ]
+      },
+      trig: {
+        title: 'Trig Derivatives',
+        hint: 'Use chain rule with sin(kx), cos(kx), tan(kx).',
+        fields: [
+          { id: 'fn', label: 'Function', value: 'sin', type: 'select', options: ['sin', 'cos', 'tan'] },
+          { id: 'k', label: 'k inside trig', value: 3 }
+        ]
+      }
+    };
+
+    const ruleInputs = document.getElementById('ruleInputs');
+    const ruleTitle = document.getElementById('ruleTitle');
+    const ruleHint = document.getElementById('ruleHint');
     const status = document.getElementById('status');
     const result = document.getElementById('result');
-    const xInput = document.getElementById('xInput');
+    const formulaInput = document.getElementById('formulaInput');
+    const calcBtn = document.getElementById('calcBtn');
 
-    document.getElementById('calcBtn').addEventListener('click', () => {
-      status.textContent = "Calculating the slope of our growth... spoiler: it's infinite.";
+    let activeRule = 'power';
+
+    function renderRule(ruleKey) {
+      activeRule = ruleKey;
+      const config = ruleConfigs[ruleKey];
+      ruleTitle.textContent = config.title;
+      ruleHint.textContent = config.hint;
+
+      document.querySelectorAll('.rule-btn').forEach((btn) => {
+        const isActive = btn.dataset.rule === ruleKey;
+        btn.classList.toggle('border-glow', isActive);
+        btn.classList.toggle('bg-black/35', isActive);
+      });
+
+      ruleInputs.innerHTML = config.fields.map((field) => {
+        if (field.type === 'select') {
+          const options = field.options.map((opt) => `<option value="${opt}" ${opt === field.value ? 'selected' : ''}>${opt}</option>`).join('');
+          return `<label class="block"><span class="mb-1 block text-sm text-amber-100/85">${field.label}</span><select data-field="${field.id}" class="w-full rounded-xl border border-amber-300/30 bg-black/25 px-4 py-2 text-amber-50 outline-none transition focus:border-glow focus:shadow-glow">${options}</select></label>`;
+        }
+        return `<label class="block"><span class="mb-1 block text-sm text-amber-100/85">${field.label}</span><input data-field="${field.id}" type="number" step="any" value="${field.value}" class="w-full rounded-xl border border-amber-300/30 bg-black/25 px-4 py-2 text-amber-50 outline-none transition focus:border-glow focus:shadow-glow" /></label>`;
+      }).join('');
+
+      status.textContent = '';
       result.classList.add('hidden');
+    }
 
-      setTimeout(() => {
-        const raw = xInput.value.trim();
-        const showFormula = '<p><strong>Derivative:</strong> $2e^x x^{2e^x}(\\ln(x)+1/x)$</p>';
+    function getFieldValues() {
+      const values = {};
+      ruleInputs.querySelectorAll('[data-field]').forEach((el) => {
+        values[el.dataset.field] = el.tagName === 'SELECT' ? el.value : Number(el.value);
+      });
+      return values;
+    }
 
-        if (!raw) {
-          result.innerHTML = `${showFormula}<p class="mt-2 text-amber-100/90">Enter a value for <em>x</em> to evaluate numerically.</p>`;
-          result.classList.remove('hidden');
-          if (window.MathJax?.typesetPromise) MathJax.typesetPromise([result]);
-          return;
-        }
+    function evaluateRule(ruleKey, values) {
+      if (ruleKey === 'power') {
+        const { a, n } = values;
+        return {
+          functionTex: `${a}x^{${n}}`,
+          derivativeTex: `${a * n}x^{${n - 1}}`,
+          detail: 'Applied power rule directly.'
+        };
+      }
 
-        const x = Number(raw);
-        const data = calculateEvelynTower(x);
+      if (ruleKey === 'product') {
+        const { a, m, b, n } = values;
+        const coefficient = a * b * (m + n);
+        return {
+          functionTex: `(${a}x^{${m}})(${b}x^{${n}})`,
+          derivativeTex: `${coefficient}x^{${m + n - 1}}`,
+          detail: `u'v + uv' simplifies to ${coefficient}x^{${m + n - 1}}.`
+        };
+      }
 
-        if (data.error) {
-          result.innerHTML = `<p class="text-rose">${data.error}</p>`;
-          result.classList.remove('hidden');
-          return;
-        }
+      if (ruleKey === 'quotient') {
+        const { a, m, b, n } = values;
+        const coefficient = (a / b) * (m - n);
+        return {
+          functionTex: `\\frac{${a}x^{${m}}}{${b}x^{${n}}}`,
+          derivativeTex: `${coefficient}x^{${m - n - 1}}`,
+          detail: 'Used quotient rule and simplified powers.'
+        };
+      }
 
-        const yText = Number.isFinite(data.y) ? data.y.toExponential(6) : 'Overflow (too much love)';
-        const dyText = Number.isFinite(data.dy) ? data.dy.toExponential(6) : 'Overflow (too much love)';
+      if (ruleKey === 'trig') {
+        const { fn, k } = values;
+        const map = {
+          sin: `${k}\\cos(${k}x)`,
+          cos: `-${k}\\sin(${k}x)`,
+          tan: `${k}\\sec^2(${k}x)`
+        };
+        return {
+          functionTex: `\\${fn}(${k}x)`,
+          derivativeTex: map[fn],
+          detail: `Applied d/dx ${fn}(kx) with chain rule factor ${k}.`
+        };
+      }
 
-        let extra = `<p class="mt-2 text-amber-100/90">${data.note}</p>`;
-        if (data.huge) {
-          extra += '<p class="mt-1 text-rose">Whoa! That number is almost as big as my feelings for you. Careful, you\'ll break the server.</p>';
-        }
+      return { functionTex: '', derivativeTex: '', detail: '' };
+    }
 
-        result.innerHTML = `
-          ${showFormula}
-          <p class="mt-2"><strong>x:</strong> ${x}</p>
-          <p><strong>f(x):</strong> ${yText}</p>
-          <p><strong>f\'(x):</strong> ${dyText}</p>
-          ${extra}
-        `;
-        result.classList.remove('hidden');
-        if (window.MathJax?.typesetPromise) MathJax.typesetPromise([result]);
-      }, 380);
+    calcBtn.addEventListener('click', () => {
+      const values = getFieldValues();
+      const hasInvalidNumber = Object.entries(values)
+        .filter(([_, v]) => typeof v === 'number')
+        .some(([_, v]) => Number.isNaN(v));
+
+      if (hasInvalidNumber) {
+        status.textContent = 'Please fill every numeric field before calculating.';
+        result.classList.add('hidden');
+        return;
+      }
+
+      status.textContent = 'Computing derivative...';
+      const data = evaluateRule(activeRule, values);
+      result.innerHTML = `
+        <p><strong>f(x):</strong> $${data.functionTex}$</p>
+        <p class="mt-2"><strong>f'(x):</strong> $${data.derivativeTex}$</p>
+        <p class="mt-2 text-amber-100/90">${data.detail}</p>
+      `;
+      result.classList.remove('hidden');
+      status.textContent = 'Done. Rule applied successfully.';
+      if (window.MathJax?.typesetPromise) MathJax.typesetPromise([result]);
     });
+
+    document.querySelectorAll('.rule-btn').forEach((btn) => {
+      btn.addEventListener('click', () => renderRule(btn.dataset.rule));
+    });
+
+    const keys = ['x', '^', '(', ')', '+', '-', '*', '/', 'sin(', 'cos(', 'tan(', 'ln(', 'e^(', 'π', '⌫', 'Clear'];
+    const keyboard = document.getElementById('mathKeyboard');
+    keyboard.innerHTML = keys.map((key) => `<button type="button" data-key="${key}" class="rounded-lg border border-amber-300/25 bg-black/25 px-3 py-2 text-sm transition hover:border-glow">${key}</button>`).join('');
+
+    keyboard.addEventListener('click', (e) => {
+      const button = e.target.closest('button[data-key]');
+      if (!button) return;
+      const key = button.dataset.key;
+
+      if (key === 'Clear') {
+        formulaInput.value = '';
+        return;
+      }
+
+      if (key === '⌫') {
+        formulaInput.value = formulaInput.value.slice(0, -1);
+        return;
+      }
+
+      formulaInput.value += key === 'π' ? 'pi' : key;
+      formulaInput.focus();
+    });
+
+    renderRule('power');
   </script>
 </body>
 </html>
