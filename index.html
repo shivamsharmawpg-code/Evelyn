@@ -109,10 +109,11 @@
 
       <div class="mt-6 rounded-2xl border border-amber-200/20 bg-midnight/70 p-6">
         <h2 class="text-xl font-semibold text-glow">Math Keyboard</h2>
-        <p class="mt-1 text-sm text-amber-100/85">Tap symbols to build notes or formulas quickly.</p>
+        <p class="mt-1 text-sm text-amber-100/85">Tap symbols to insert into the currently selected input. Use the keyboard for function fields or step work below.</p>
         <input id="formulaInput" type="text" placeholder="Build your own expression..."
           class="mt-3 w-full rounded-xl border border-amber-300/30 bg-black/25 px-4 py-2 text-amber-50 outline-none ring-0 transition focus:border-glow focus:shadow-glow" />
         <div id="mathKeyboard" class="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6"></div>
+        <p class="mt-3 text-xs text-amber-100/70">Tip: click any <code>f(x)</code>/<code>g(x)</code> field (or multi-step line) first, then use this keyboard.</p>
       </div>
 
       <div class="mt-6 rounded-2xl border border-amber-200/20 bg-midnight/70 p-6">
@@ -125,6 +126,17 @@
         </div>
         <p id="unifiedStatus" class="mt-3 min-h-6 text-rose"></p>
         <div id="functionRows" class="mt-4 space-y-4"></div>
+      </div>
+
+      <div class="mt-6 rounded-2xl border border-amber-200/20 bg-midnight/70 p-6">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-semibold text-glow">Multi-Step Equation Pad</h2>
+            <p class="mt-1 text-sm text-amber-100/85">Write one step per line (e.g. <code>2x+4=10</code>). This lets you show full step-by-step work instead of one-line-only math.</p>
+          </div>
+          <button id="addStepBtn" class="rounded-xl border border-amber-300/35 bg-black/25 px-4 py-2 font-semibold text-amber-50 transition hover:border-glow">+ Add step</button>
+        </div>
+        <div id="stepRows" class="mt-4 space-y-3"></div>
       </div>
     </section>
 
@@ -182,28 +194,66 @@
     const functionRows = document.getElementById('functionRows');
     const addFunctionBtn = document.getElementById('addFunctionBtn');
     const unifiedStatus = document.getElementById('unifiedStatus');
+    const stepRows = document.getElementById('stepRows');
+    const addStepBtn = document.getElementById('addStepBtn');
+    let activeEditable = formulaInput;
 
     const keys = ['x', '^', '(', ')', '+', '-', '*', '/', 'sin(', 'cos(', 'tan(', 'ln(', 'e^(', 'π', '⌫', 'Clear'];
     const keyboard = document.getElementById('mathKeyboard');
     keyboard.innerHTML = keys.map((key) => `<button type="button" data-key="${key}" class="rounded-lg border border-amber-300/25 bg-black/25 px-3 py-2 text-sm transition hover:border-glow">${key}</button>`).join('');
 
+    function insertAtCursor(target, text) {
+      if (!target) return;
+      const start = target.selectionStart ?? target.value.length;
+      const end = target.selectionEnd ?? target.value.length;
+      const before = target.value.slice(0, start);
+      const after = target.value.slice(end);
+      target.value = `${before}${text}${after}`;
+      const nextCaret = start + text.length;
+      target.setSelectionRange(nextCaret, nextCaret);
+      target.focus();
+      target.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    document.addEventListener('focusin', (event) => {
+      if (event.target.matches('input, textarea')) {
+        activeEditable = event.target;
+      }
+    });
+
     keyboard.addEventListener('click', (e) => {
       const button = e.target.closest('button[data-key]');
       if (!button) return;
       const key = button.dataset.key;
+      const target = activeEditable || formulaInput;
 
       if (key === 'Clear') {
-        formulaInput.value = '';
+        target.value = '';
+        target.dispatchEvent(new Event('input', { bubbles: true }));
         return;
       }
 
       if (key === '⌫') {
-        formulaInput.value = formulaInput.value.slice(0, -1);
+        if (typeof target.selectionStart === 'number' && typeof target.selectionEnd === 'number') {
+          const start = target.selectionStart;
+          const end = target.selectionEnd;
+          if (start !== end) {
+            target.value = target.value.slice(0, start) + target.value.slice(end);
+            target.setSelectionRange(start, start);
+          } else if (start > 0) {
+            target.value = target.value.slice(0, start - 1) + target.value.slice(end);
+            target.setSelectionRange(start - 1, start - 1);
+          }
+          target.dispatchEvent(new Event('input', { bubbles: true }));
+          target.focus();
+          return;
+        }
+        target.value = target.value.slice(0, -1);
+        target.dispatchEvent(new Event('input', { bubbles: true }));
         return;
       }
 
-      formulaInput.value += key === 'π' ? 'pi' : key;
-      formulaInput.focus();
+      insertAtCursor(target, key === 'π' ? 'pi' : key);
     });
 
     function functionNameFromIndex(index) {
@@ -292,11 +342,11 @@
       row.innerHTML = `
         <div class="grid gap-4 md:grid-cols-2">
           <label class="block">
-            <span class="mb-1 block text-sm text-amber-100/85">${fnName}(x)</span>
+            <span class="mb-1 block text-sm text-amber-100/85">${fnName}(x) =</span>
             <input type="text" value="${defaultExpression}" class="fn-input w-full rounded-xl border border-amber-300/30 bg-black/25 px-4 py-2 text-amber-50 outline-none transition focus:border-glow focus:shadow-glow" placeholder="e.g. 38sinx or 14x^18" />
           </label>
           <div class="block">
-            <span class="mb-1 block text-sm text-amber-100/85">${fnName}'(x)</span>
+            <span class="mb-1 block text-sm text-amber-100/85">${fnName}'(x) =</span>
             <div class="fn-derivative min-h-11 rounded-xl border border-amber-300/25 bg-black/25 px-4 py-2 text-amber-50"></div>
           </div>
         </div>
@@ -305,14 +355,43 @@
 
       const input = row.querySelector('.fn-input');
       input.addEventListener('input', () => updateRow(row));
-      functionRows.appendChild(row);
+    functionRows.appendChild(row);
       updateRow(row);
     }
 
+    function renderStepRow(row) {
+      const input = row.querySelector('.step-input');
+      const display = row.querySelector('.step-display');
+      const value = input.value.trim();
+      display.innerHTML = value ? `$${value}$` : '<span class="text-amber-100/70">Type a step like 2x+4=10</span>';
+      if (window.MathJax?.typesetPromise) MathJax.typesetPromise([row]);
+    }
+
+    function createStepRow(defaultStep = '') {
+      const row = document.createElement('div');
+      row.className = 'rounded-2xl border border-amber-200/20 bg-black/20 p-4';
+      row.innerHTML = `
+        <label class="block">
+          <span class="mb-1 block text-sm text-amber-100/85">Step</span>
+          <textarea rows="2" class="step-input w-full rounded-xl border border-amber-300/30 bg-black/25 px-4 py-2 text-amber-50 outline-none transition focus:border-glow focus:shadow-glow" placeholder="x^2-9=0&#10;x^2=9&#10;x=\\pm3">${defaultStep}</textarea>
+        </label>
+        <div class="mt-3">
+          <span class="mb-1 block text-sm text-amber-100/85">Rendered</span>
+          <div class="step-display min-h-11 rounded-xl border border-amber-300/25 bg-black/25 px-4 py-2 text-amber-50"></div>
+        </div>
+      `;
+      const input = row.querySelector('.step-input');
+      input.addEventListener('input', () => renderStepRow(row));
+      stepRows.appendChild(row);
+      renderStepRow(row);
+    }
+
     addFunctionBtn.addEventListener('click', () => createFunctionRow(''));
+    addStepBtn.addEventListener('click', () => createStepRow(''));
 
     createFunctionRow('38sinx');
     createFunctionRow('14x^18');
+    createStepRow('2x+4=10');
   </script>
 </body>
 </html>
