@@ -337,6 +337,19 @@
       return rules;
     }
 
+    function rewriteNRootForDerivative(expression) {
+      const parsed = math.parse(expression);
+      const transformed = parsed.transform((node) => {
+        if (node.type === 'FunctionNode' && node.fn?.name === 'nroot' && node.args.length === 2) {
+          const base = node.args[0].toString();
+          const degree = node.args[1].toString();
+          return math.parse(`(${base})^(1/(${degree}))`);
+        }
+        return node;
+      });
+      return transformed.toString();
+    }
+
     function getDefinedFunctions() {
       const definitions = {};
       [...functionRows.children].forEach((row, index) => {
@@ -373,8 +386,9 @@
 
       try {
         const normalizedExpression = normalizeExpression(expressionRaw);
-        const functionNode = math.parse(normalizedExpression);
-        const derivativeNode = math.derivative(normalizedExpression, 'x');
+        const derivativeSafeExpression = rewriteNRootForDerivative(normalizedExpression);
+        const functionNode = math.parse(derivativeSafeExpression);
+        const derivativeNode = math.derivative(derivativeSafeExpression, 'x');
         const detectedRules = [...detectRulesFromNode(functionNode)];
 
         resultBox.innerHTML = `$${derivativeNode.toTex({ parenthesis: 'keep' })}$`;
