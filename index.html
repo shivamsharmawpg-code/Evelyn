@@ -109,11 +109,11 @@
 
       <div class="mt-6 rounded-2xl border border-amber-200/20 bg-midnight/70 p-6">
         <h2 class="text-xl font-semibold text-glow">Math Keyboard</h2>
-        <p class="mt-1 text-sm text-amber-100/85">Tap symbols to insert into the currently selected input. Use the keyboard for function fields or step work below.</p>
+        <p class="mt-1 text-sm text-amber-100/85">Tap symbols to insert into the currently selected input. Includes trig, roots, powers, constants, and equation helpers for fast copy/paste workflows.</p>
         <input id="formulaInput" type="text" placeholder="Build your own expression..."
           class="mt-3 w-full rounded-xl border border-amber-300/30 bg-black/25 px-4 py-2 text-amber-50 outline-none ring-0 transition focus:border-glow focus:shadow-glow" />
         <div id="mathKeyboard" class="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6"></div>
-        <p class="mt-3 text-xs text-amber-100/70">Tip: click any <code>f(x)</code>/<code>g(x)</code> field (or multi-step line) first, then use this keyboard.</p>
+        <p class="mt-3 text-xs text-amber-100/70">Tip: click any <code>f(x)</code>/<code>g(x)</code> field (or multi-step line) first, then use this keyboard. Text like <code>root 6 of 4 tanx / 0.03</code> is auto-normalized.</p>
       </div>
 
       <div class="mt-6 rounded-2xl border border-amber-200/20 bg-midnight/70 p-6">
@@ -132,7 +132,7 @@
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 class="text-xl font-semibold text-glow">Multi-Step Equation Pad</h2>
-            <p class="mt-1 text-sm text-amber-100/85">Write one step per line (e.g. <code>2x+4=10</code>). This lets you show full step-by-step work instead of one-line-only math.</p>
+            <p class="mt-1 text-sm text-amber-100/85">Write one step per line (e.g. <code>2x+4=10</code>). You can reference defined functions like <code>f(x)</code>, <code>g(x)</code>, solve normalized equations, and auto-generate steps for expressions such as <code>root 6 of 4 tanx / 0.03</code>.</p>
           </div>
           <button id="addStepBtn" class="rounded-xl border border-amber-300/35 bg-black/25 px-4 py-2 font-semibold text-amber-50 transition hover:border-glow">+ Add step</button>
         </div>
@@ -198,7 +198,12 @@
     const addStepBtn = document.getElementById('addStepBtn');
     let activeEditable = formulaInput;
 
-    const keys = ['x', '^', '(', ')', '+', '-', '*', '/', 'sin(', 'cos(', 'tan(', 'ln(', 'e^(', 'π', '⌫', 'Clear'];
+    const keys = [
+      'x', 'y', '^', 'x^y', '(', ')', '+', '-', '*', '/', '=',
+      'sin(', 'cos(', 'tan(', 'sec(', 'csc(', 'cot(',
+      'ln(', 'log(', 'sqrt(', 'nroot(', 'abs(', '!',
+      'π', 'e', '⌫', 'Clear'
+    ];
     const keyboard = document.getElementById('mathKeyboard');
     keyboard.innerHTML = keys.map((key) => `<button type="button" data-key="${key}" class="rounded-lg border border-amber-300/25 bg-black/25 px-3 py-2 text-sm transition hover:border-glow">${key}</button>`).join('');
 
@@ -253,6 +258,13 @@
         return;
       }
 
+      if (key === 'x^y') {
+        insertAtCursor(target, '^()');
+        const cursor = (target.selectionStart ?? target.value.length) - 1;
+        target.setSelectionRange(cursor, cursor);
+        return;
+      }
+
       insertAtCursor(target, key === 'π' ? 'pi' : key);
     });
 
@@ -263,14 +275,37 @@
 
     function normalizeExpression(input) {
       let expr = input.trim();
+      expr = expr.replace(/[×]/g, '*');
+      expr = expr.replace(/[÷]/g, '/');
+      expr = expr.replace(/\btimes\b/gi, '*');
+      expr = expr.replace(/\bover\b/gi, '/');
+      expr = expr.replace(/\bplus\b/gi, '+');
+      expr = expr.replace(/\bminus\b/gi, '-');
+      expr = expr.replace(/\bmultiplied\s+by\b/gi, '*');
+      expr = expr.replace(/\bdivided\s+by\b/gi, '/');
+      expr = expr.replace(/(\d+)(st|nd|rd|th)\s+root\s+of\s+([^=]+)/gi, (_, power, __, inner) => `nroot(${inner.trim()},${power})`);
+      expr = expr.replace(/\broot\s+(\d+)\s+of\s+([^=]+)/gi, (_, power, inner) => `nroot(${inner.trim()},${power})`);
+      expr = expr.replace(/\bcube\s*root\s*of\s+([^=]+)/gi, (_, inner) => `nroot(${inner.trim()},3)`);
+      expr = expr.replace(/\bquartic\s*root\s*of\s+([^=]+)/gi, (_, inner) => `nroot(${inner.trim()},4)`);
       expr = expr.replace(/\bof\b/gi, '*');
       expr = expr.replace(/(sin|cos|tan|sec|csc|cot)\s*x\b/gi, '$1(x)');
       expr = expr.replace(/(sin|cos|tan|sec|csc|cot)x\b/gi, '$1(x)');
+      expr = expr.replace(/\bnroot\s+(\d+)\s+([a-zA-Z0-9().+\-*/^]+)/gi, 'nroot($2,$1)');
       expr = expr.replace(/(\d)([a-zA-Z(])/g, '$1*$2');
       expr = expr.replace(/(\))([a-zA-Z(\d])/g, '$1*$2');
       expr = expr.replace(/([xX])(\d)/g, '$1*$2');
       expr = expr.replace(/([xX])(\()/g, '$1*$2');
+      expr = expr.replace(/\s+/g, '');
       return expr;
+    }
+
+    function tryNumericValue(expression) {
+      if (/[a-df-zA-DF-Z]/.test(expression)) return null;
+      try {
+        return math.evaluate(expression);
+      } catch (error) {
+        return null;
+      }
     }
 
     function detectRulesFromNode(node, rules = new Set()) {
@@ -300,6 +335,27 @@
       if (node.content) detectRulesFromNode(node.content, rules);
 
       return rules;
+    }
+
+    function getDefinedFunctions() {
+      const definitions = {};
+      [...functionRows.children].forEach((row, index) => {
+        const input = row.querySelector('.fn-input');
+        const expressionRaw = input?.value?.trim();
+        if (!expressionRaw) return;
+        const fnName = functionNameFromIndex(index);
+        definitions[fnName] = normalizeExpression(expressionRaw);
+      });
+      return definitions;
+    }
+
+    function resolveFunctionReferences(expression, definitions) {
+      let resolved = expression;
+      Object.entries(definitions).forEach(([fnName, fnBody]) => {
+        const refPattern = new RegExp(`\\b${fnName}\\s*\\(\\s*x\\s*\\)`, 'gi');
+        resolved = resolved.replace(refPattern, `(${fnBody})`);
+      });
+      return resolved;
     }
 
     function updateRow(row) {
@@ -354,17 +410,75 @@
       `;
 
       const input = row.querySelector('.fn-input');
-      input.addEventListener('input', () => updateRow(row));
-    functionRows.appendChild(row);
+      input.addEventListener('input', () => {
+        updateRow(row);
+        refreshStepRows();
+      });
+      functionRows.appendChild(row);
       updateRow(row);
     }
 
     function renderStepRow(row) {
       const input = row.querySelector('.step-input');
       const display = row.querySelector('.step-display');
+      const evalBox = row.querySelector('.step-eval');
+      const autoSteps = row.querySelector('.step-auto');
       const value = input.value.trim();
-      display.innerHTML = value ? `$${value}$` : '<span class="text-amber-100/70">Type a step like 2x+4=10</span>';
+
+      if (!value) {
+        display.innerHTML = '<span class="text-amber-100/70">Type a step like 2x+4=10 or f(x)g(x)/0.054</span>';
+        evalBox.innerHTML = '<span class="text-amber-100/70">A simplified result will appear here when possible.</span>';
+        autoSteps.innerHTML = '<li class="text-amber-100/70">Step explanation will appear automatically.</li>';
+        if (window.MathJax?.typesetPromise) MathJax.typesetPromise([row]);
+        return;
+      }
+
+      display.innerHTML = `$${value}$`;
+
+      try {
+        const definitions = getDefinedFunctions();
+        const resolved = resolveFunctionReferences(value, definitions);
+        const normalized = normalizeExpression(resolved);
+        const stepItems = [];
+        stepItems.push(`Read input: <code>${value.replace(/</g, '&lt;')}</code>`);
+        if (resolved !== value) {
+          stepItems.push(`Substitute function references: <code>${resolved.replace(/</g, '&lt;')}</code>`);
+        }
+        if (normalized !== resolved) {
+          stepItems.push(`Normalize operators/forms: <code>${normalized.replace(/</g, '&lt;')}</code>`);
+        }
+
+        if (normalized.includes('=')) {
+          const [left, right] = normalized.split('=');
+          const leftNode = math.simplify(left.trim());
+          const rightNode = math.simplify(right.trim());
+          evalBox.innerHTML = `$${leftNode.toTex({ parenthesis: 'keep' })} = ${rightNode.toTex({ parenthesis: 'keep' })}$`;
+          stepItems.push(`Simplify both sides: <code>${leftNode.toString()} = ${rightNode.toString()}</code>`);
+          const leftNumeric = tryNumericValue(leftNode.toString());
+          const rightNumeric = tryNumericValue(rightNode.toString());
+          if (leftNumeric !== null && rightNumeric !== null) {
+            stepItems.push(`Numeric check: <code>${leftNumeric} = ${rightNumeric}</code>`);
+          }
+        } else {
+          const simplified = math.simplify(normalized);
+          evalBox.innerHTML = `$${simplified.toTex({ parenthesis: 'keep' })}$`;
+          stepItems.push(`Simplify expression: <code>${simplified.toString()}</code>`);
+          const numeric = tryNumericValue(simplified.toString());
+          if (numeric !== null) {
+            stepItems.push(`Evaluate numeric value: <code>${numeric}</code>`);
+          }
+        }
+        autoSteps.innerHTML = stepItems.map((item) => `<li>${item}</li>`).join('');
+      } catch (error) {
+        evalBox.innerHTML = `<span class="text-rose">Could not evaluate this step: ${error.message}</span>`;
+        autoSteps.innerHTML = `<li class="text-rose">Parsing failed: ${error.message}</li>`;
+      }
+
       if (window.MathJax?.typesetPromise) MathJax.typesetPromise([row]);
+    }
+
+    function refreshStepRows() {
+      [...stepRows.children].forEach((row) => renderStepRow(row));
     }
 
     function createStepRow(defaultStep = '') {
@@ -379,6 +493,14 @@
           <span class="mb-1 block text-sm text-amber-100/85">Rendered</span>
           <div class="step-display min-h-11 rounded-xl border border-amber-300/25 bg-black/25 px-4 py-2 text-amber-50"></div>
         </div>
+        <div class="mt-3">
+          <span class="mb-1 block text-sm text-amber-100/85">Simplified / Evaluated</span>
+          <div class="step-eval min-h-11 rounded-xl border border-amber-300/25 bg-black/25 px-4 py-2 text-amber-50"></div>
+        </div>
+        <div class="mt-3">
+          <span class="mb-1 block text-sm text-amber-100/85">Auto Step-by-Step</span>
+          <ol class="step-auto list-decimal space-y-1 pl-5 text-sm text-amber-100/90"></ol>
+        </div>
       `;
       const input = row.querySelector('.step-input');
       input.addEventListener('input', () => renderStepRow(row));
@@ -392,6 +514,7 @@
     createFunctionRow('38sinx');
     createFunctionRow('14x^18');
     createStepRow('2x+4=10');
+    createStepRow('f(x)g(x)/0.054');
   </script>
 </body>
 </html>
